@@ -5,21 +5,32 @@ from torch.utils.data import Dataset
 from transformers import ResNetForImageClassification, TrainingArguments, Trainer, AutoImageProcessor
 
 from settings.config import IMAGE_SOURCE, LABEL_SOURCE, N_CLASSES, MODEL_NAME
-from utils.image_utils import list_images, image_to_patches
+from utils.image_utils import list_images, image_to_patches, load_label
 
 processor = AutoImageProcessor.from_pretrained(MODEL_NAME)
 processor.crop_pct = 1.0
 
 class CloudDataset(Dataset):
+    # def __init__(self, images):
+    #     self.patches = []
+    #     self.labels = []
+    #     for url in images:
+    #         filename = os.path.basename(url)
+    #         stem = os.path.splitext(filename)[0]
+    #         label_path = os.path.join(LABEL_SOURCE, stem + ".npy")
+    #         grid = np.load(label_path).reshape(-1)
+    #         patches = image_to_patches(url)
+    #         for i in range(len(patches)):
+    #             self.patches.append(patches[i])
+    #             self.labels.append(int(grid[i]))
+    #     print("training cells:", len(self.labels))
+
     def __init__(self, images):
         self.patches = []
         self.labels = []
-        for url in images:
-            filename = os.path.basename(url)
-            stem = os.path.splitext(filename)[0]
-            label_path = os.path.join(LABEL_SOURCE, stem + ".npy")
-            grid = np.load(label_path).reshape(-1)
-            patches = image_to_patches(url)
+        for path in images:
+            grid = load_label(path)  # 讀跟圖同名的 .csv,已攤平成 1D
+            patches = image_to_patches(path)
             for i in range(len(patches)):
                 self.patches.append(patches[i])
                 self.labels.append(int(grid[i]))
@@ -36,14 +47,14 @@ class CloudDataset(Dataset):
         }
 
 def train():
-    images = list_images(IMAGE_SOURCE)[:5]
+    images = list_images(IMAGE_SOURCE)
     dataset = CloudDataset(images)
     model = ResNetForImageClassification.from_pretrained(
         MODEL_NAME, num_labels=N_CLASSES, ignore_mismatched_sizes=True)
 
     args = TrainingArguments(
         output_dir="hf_out",
-        num_train_epochs=5,
+        num_train_epochs=1,
         per_device_train_batch_size=64,
         learning_rate=1e-4,
         logging_steps=10,
